@@ -14,12 +14,8 @@ type BceCredentials = auth.BceCredentials
 type AuthMode string
 
 const (
-	ModeAK             AuthMode = "AK"
-	ModeStsToken       AuthMode = "StsToken"
-	ModeAssumeRole     AuthMode = "AssumeRole"
-	ModeInstanceRole   AuthMode = "InstanceRole"
-	ModeExternal       AuthMode = "External"
-	ModeCredentialsURI AuthMode = "CredentialsURI"
+	ModeAK       AuthMode = "AK"
+	ModeStsToken AuthMode = "StsToken"
 )
 
 // Profile holds all credential and preference settings for one named configuration.
@@ -32,44 +28,38 @@ type Profile struct {
 	Region          string   `json:"region,omitempty"`
 	Endpoint        string   `json:"endpoint,omitempty"`
 	Language        string   `json:"language,omitempty"`
-	OutputFormat    string   `json:"output_format,omitempty"`
 }
 
 // FlagOverrides carries per-invocation values from global flags that take
 // precedence over the active profile.
 type FlagOverrides struct {
-	Profile       string
 	Region        string
 	Endpoint      string
-	AccessKeyId   string
-	SecretKey     string
-	SecurityToken string
+	Scheme        string // "http" or "https"; empty means auto-detect from product metadata
+	Language      string
 	Output        string
 	Query         string
-	DryRun        bool
-	Debug         bool
-	NoColor       bool
+	DryRun     bool
+	Debug      bool
+	NoColor    bool
+	Timeout    int  // request timeout in seconds; 0 means use default (15s)
+	TotalCount int  // --total-count: cap on total items returned across pages; 0 = unlimited
+	Pager      bool // --pager: enable auto-pagination and aggregate all pages
 }
 
 // Resolve fills empty profile fields from standard environment variables.
 func (p *Profile) Resolve() {
 	if p.AccessKeyId == "" {
-		p.AccessKeyId = firstNonEmpty(
-			os.Getenv("BCE_ACCESS_KEY_ID"),
-			os.Getenv("BAIDUBCE_ACCESS_KEY_ID"),
-		)
+		p.AccessKeyId = os.Getenv("BCE_ACCESS_KEY_ID")
 	}
 	if p.SecretAccessKey == "" {
-		p.SecretAccessKey = firstNonEmpty(
-			os.Getenv("BCE_SECRET_ACCESS_KEY"),
-			os.Getenv("BAIDUBCE_SECRET_ACCESS_KEY"),
-		)
+		p.SecretAccessKey = os.Getenv("BCE_SECRET_ACCESS_KEY")
 	}
 	if p.SecurityToken == "" {
 		p.SecurityToken = os.Getenv("BCE_SECURITY_TOKEN")
 	}
 	if p.Region == "" {
-		p.Region = firstNonEmpty(os.Getenv("BCE_REGION"), "bj")
+		p.Region = os.Getenv("BCE_REGION")
 	}
 }
 
@@ -83,6 +73,9 @@ func (p *Profile) Credentials() (*auth.BceCredentials, error) {
 		return auth.NewBceCredentials(p.AccessKeyId, p.SecretAccessKey)
 
 	case ModeStsToken:
+		if p.AccessKeyId == "" || p.SecretAccessKey == "" {
+			return nil, fmt.Errorf("access_key_id and secret_access_key are required for StsToken mode (use `bce configure set` or set BCE_ACCESS_KEY_ID/BCE_SECRET_ACCESS_KEY env vars)")
+		}
 		if p.SecurityToken == "" {
 			return nil, fmt.Errorf("security_token is required for StsToken mode")
 		}
@@ -91,13 +84,4 @@ func (p *Profile) Credentials() (*auth.BceCredentials, error) {
 	default:
 		return nil, fmt.Errorf("auth mode %q is not yet supported", p.Mode)
 	}
-}
-
-func firstNonEmpty(vals ...string) string {
-	for _, v := range vals {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
 }

@@ -3,12 +3,15 @@ package cmd
 import (
 	"os"
 
+	"github.com/baidubce/bce-cli/internal/i18n"
 	"github.com/spf13/cobra"
 )
 
 var completionCmd = &cobra.Command{
-	Use:       "completion [bash|zsh|fish|powershell]",
-	Short:     "生成 shell 自动补全脚本",
+	GroupID:     "system",
+	Use:         "completion [bash|zsh|fish|powershell]",
+	Short:       i18n.T(i18n.GetLanguage(), "cmd-completion"),
+	Annotations: map[string]string{"i18n-short": "cmd-completion"},
 	ValidArgs: []string{"bash", "zsh", "fish", "powershell"},
 	Args:      cobra.ExactValidArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {

@@ -4,13 +4,46 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"text/tabwriter"
 
 	jmespath "github.com/jmespath/go-jmespath"
 )
 
-// OutputFormat controls how the API response is rendered.
+// ParseOutput parses the --output flag value into format, column list, and row-extraction path.
+//
+// Supported forms:
+//
+//	"json"                             → FormatJSON
+//	"text"                             → FormatText
+//	"table"                            → FormatTable, columns auto-detected
+//	"cols=id,name"                     → FormatTable, specified columns
+//	"rows=vpcs"                        → FormatTable, JMESPath row extraction
+//	"table cols=id,name rows=vpcs"     → FormatTable, columns + row extraction
+func parseOutput(raw string) (format OutputFormat, cols []string, rows string, err error) {
+	format = FormatJSON
+	for _, part := range strings.Fields(raw) {
+		switch {
+		case part == "json":
+			format = FormatJSON
+		case part == "text":
+			format = FormatText
+		case part == "table":
+			format = FormatTable
+		case strings.HasPrefix(part, "cols="):
+			format = FormatTable
+			cols = strings.Split(strings.TrimPrefix(part, "cols="), ",")
+		case strings.HasPrefix(part, "rows="):
+			format = FormatTable
+			rows = strings.TrimPrefix(part, "rows=")
+		default:
+			err = fmt.Errorf("invalid --output value %q: supported formats: json, text, table, table cols=<c1,c2> rows=<jmespath>", part)
+			return
+		}
+	}
+	return
+}
 type OutputFormat string
 
 const (
@@ -22,12 +55,13 @@ const (
 // OutputOptions configures response rendering.
 type OutputOptions struct {
 	Format  OutputFormat
-	Query   string   // JMESPath expression applied before formatting
+	Query   string   // --query: JMESPath applied first to the raw response
+	Rows    string   // rows=: JMESPath applied after Query for table row extraction
 	Cols    []string // column names for table output
 	NoColor bool
 }
 
-// Print applies the JMESPath query (if any) then renders the result.
+// Print applies --query then rows= (if set) and renders the result.
 func Print(data map[string]interface{}, opts OutputOptions) error {
 	var result interface{} = data
 
@@ -35,6 +69,14 @@ func Print(data map[string]interface{}, opts OutputOptions) error {
 		filtered, err := jmespath.Search(opts.Query, result)
 		if err != nil {
 			return fmt.Errorf("--query: %w", err)
+		}
+		result = filtered
+	}
+
+	if opts.Rows != "" {
+		filtered, err := jmespath.Search(opts.Rows, result)
+		if err != nil {
+			return fmt.Errorf("rows=: %w", err)
 		}
 		result = filtered
 	}
@@ -59,12 +101,18 @@ func printJSON(v interface{}, color bool) error {
 		return enc.Encode(v)
 	}
 
-	// Encode to bytes first, then apply simple ANSI colouring
-	raw, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
+	// Encode via json.Encoder (SetEscapeHTML=false) into a buffer so that the
+	// colour path produces identical byte output to the non-colour path — the
+	// only difference is ANSI codes wrapped around tokens.
+	var buf strings.Builder
+	enc2 := json.NewEncoder(&buf)
+	enc2.SetIndent("", "  ")
+	enc2.SetEscapeHTML(false)
+	if err := enc2.Encode(v); err != nil {
 		return err
 	}
-	fmt.Println(colorJSON(string(raw)))
+	// Encode appends a trailing newline; trim it so fmt.Println adds exactly one.
+	fmt.Println(colorJSON(strings.TrimRight(buf.String(), "\n")))
 	return nil
 }
 
@@ -76,6 +124,17 @@ func printTable(v interface{}, cols []string) error {
 			rows = []interface{}{m}
 		} else {
 			return printJSON(v, false)
+		}
+	}
+
+	// Auto-detect columns from first row when --cols is not specified.
+	if len(cols) == 0 && len(rows) > 0 {
+		if m, ok := rows[0].(map[string]interface{}); ok {
+			cols = make([]string, 0, len(m))
+			for k := range m {
+				cols = append(cols, k)
+			}
+			sort.Strings(cols)
 		}
 	}
 
@@ -104,7 +163,7 @@ func printText(v interface{}) {
 	case nil:
 		// nothing
 	default:
-		fmt.Println(fmt.Sprintf("%v", val))
+		fmt.Printf("%v\n", val)
 	}
 }
 
@@ -140,12 +199,19 @@ func colorJSON(s string) string {
 			for end < n {
 				if s[end] == '\\' {
 					end += 2
+					if end >= n {
+						break
+					}
 					continue
 				}
 				if s[end] == '"' {
 					break
 				}
 				end++
+			}
+			// Guard against unterminated string at EOF.
+			if end >= n {
+				end = n - 1
 			}
 			token := s[i : end+1]
 			// Peek past whitespace to see if a colon follows → it's a key
@@ -174,17 +240,19 @@ func colorJSON(s string) string {
 		}
 
 		// Keyword tokens: true / false / null
+		matched := false
 		for _, kw := range []string{"true", "false", "null"} {
 			if strings.HasPrefix(s[i:], kw) {
 				b.WriteString(purple + kw + reset)
 				i += len(kw)
-				goto next
+				matched = true
+				break
 			}
 		}
-
-		b.WriteByte(ch)
-		i++
-	next:
+		if !matched {
+			b.WriteByte(ch)
+			i++
+		}
 	}
 	return b.String()
 }

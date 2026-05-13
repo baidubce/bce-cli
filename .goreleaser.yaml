@@ -1,0 +1,50 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: .
+    binary: bce
+    ldflags:
+      - -s -w
+      - -X 'github.com/baidubce/bce-cli/internal/version.Version={{.Version}}'
+      - -X 'github.com/baidubce/bce-cli/internal/version.Commit={{.Commit}}'
+      - -X 'github.com/baidubce/bce-cli/internal/version.BuildTime={{.Date}}'
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - formats:
+      - tgz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: "bce-{{ if eq .Os \"darwin\" }}macosx{{ else }}{{ .Os }}{{ end }}-{{ .Version }}-{{ .Arch }}"
+
+checksum:
+  name_template: "SHASUMS256.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  github:
+    owner: 你的用户名
+    name: bce-cli

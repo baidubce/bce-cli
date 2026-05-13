@@ -56,6 +56,7 @@ func Save(cfg *Configuration) error {
 	}
 	tmp := configFilePath() + ".tmp"
 	if err := os.WriteFile(tmp, data, 0600); err != nil {
+		os.Remove(tmp)
 		return err
 	}
 	return os.Rename(tmp, configFilePath())

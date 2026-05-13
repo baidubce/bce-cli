@@ -1,0 +1,18 @@
+# Changelog
+
+## [0.1.0] - 2026-05-15
+
+首个正式发布版本。
+
+### 新增
+
+- **多 Profile 管理**：支持多账号配置，`bce configure` 子命令完整覆盖增删改查切换
+- **灵活参数格式**：复杂参数支持 JSON 字符串和 `--unfold` KV 点号两种传入方式
+- **`--cli-input-json`**：从 JSON 文件加载请求参数，支持 `--generate-cli-skeleton` 生成参数骨架
+- **输出格式**：支持 `json`（默认）、`table`（含 `rows=` / `cols=` 子参数）、`text` 三种格式
+- **`--query`**：JMESPath 表达式过滤响应结果
+- **调试工具**：`--dry-run` 打印请求内容不发送，`--debug` 打印完整 HTTP 请求/响应
+- **自动补全**：支持 Bash、Zsh、Fish、PowerShell Tab 补全
+- **智能命令建议**：输入错误命令时自动推荐最近似命令
+- **多语言支持**：`--language zh-CN / en-US`，优先级：flag > profile > `$BCE_LANGUAGE` > 系统语言 > 默认中文
+- **环境变量**：支持通过 `BCE_ACCESS_KEY_ID`、`BCE_SECRET_ACCESS_KEY`、`BCE_SECURITY_TOKEN`、`BCE_REGION`、`BCE_LANGUAGE` 配置
