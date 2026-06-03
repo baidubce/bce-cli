@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,10 +16,10 @@ import (
 )
 
 const (
-	githubAPIURL    = "https://api.github.com/repos/baidubce/bce-cli/releases/latest"
-	downloadBaseURL = "https://github.com/baidubce/bce-cli/releases/download"
-	apiTimeout      = 15 * time.Second
-	downloadTimeout = 5 * time.Minute
+	releasesLatestURL = "https://github.com/baidubce/bce-cli/releases/latest"
+	downloadBaseURL   = "https://github.com/baidubce/bce-cli/releases/download"
+	apiTimeout        = 15 * time.Second
+	downloadTimeout   = 5 * time.Minute
 )
 
 // ReleaseInfo holds the latest release version and the download URL for the current platform.
@@ -29,50 +28,38 @@ type ReleaseInfo struct {
 	DownloadURL string
 }
 
-type githubRelease struct {
-	TagName string        `json:"tag_name"`
-	Assets  []githubAsset `json:"assets"`
-}
-
-type githubAsset struct {
-	Name               string `json:"name"`
-	BrowserDownloadURL string `json:"browser_download_url"`
-}
-
-// CheckLatest queries the GitHub Releases API and returns the latest release
-// for the current platform.
+// CheckLatest resolves the latest release by following the /releases/latest redirect,
+// extracting the version tag from the final URL. This avoids the GitHub API rate limit.
 func CheckLatest() (*ReleaseInfo, error) {
-	client := &http.Client{Timeout: apiTimeout}
-	req, err := http.NewRequest(http.MethodGet, githubAPIURL, nil)
-	if err != nil {
-		return nil, err
+	client := &http.Client{
+		Timeout: apiTimeout,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 	}
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("User-Agent", "bce-cli-updater")
 
-	resp, err := client.Do(req)
+	resp, err := client.Get(releasesLatestURL)
 	if err != nil {
 		return nil, fmt.Errorf("check for updates: %w", err)
 	}
-	defer resp.Body.Close()
+	resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API returned HTTP %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusFound && resp.StatusCode != http.StatusMovedPermanently {
+		return nil, fmt.Errorf("unexpected status %d from releases page", resp.StatusCode)
 	}
 
-	var rel githubRelease
-	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
-		return nil, fmt.Errorf("parse release info: %w", err)
-	}
-	if rel.TagName == "" {
-		return nil, fmt.Errorf("no releases found")
+	location := resp.Header.Get("Location")
+	// Location is like: https://github.com/.../releases/tag/v0.1.3
+	tag := location[strings.LastIndex(location, "/")+1:]
+	if tag == "" {
+		return nil, fmt.Errorf("could not parse release tag from redirect: %s", location)
 	}
 
-	ver := strings.TrimPrefix(rel.TagName, "v")
-	assetName := platformAssetName(ver)
-	downloadURL := downloadURLFromAssets(rel.Assets, rel.TagName, assetName)
-
-	return &ReleaseInfo{Version: ver, DownloadURL: downloadURL}, nil
+	ver := strings.TrimPrefix(tag, "v")
+	return &ReleaseInfo{
+		Version:     ver,
+		DownloadURL: DownloadURLForVersion(ver),
+	}, nil
 }
 
 // CompareVersions returns 1 if a > b, -1 if a < b, 0 if equal.
@@ -136,7 +123,7 @@ func Install(url string, w io.Writer) error {
 	tmpArchive.Close()
 
 	// Extract the bce binary from the archive.
-	ext := ".tar.gz"
+	ext := ".tgz"
 	if runtime.GOOS == "windows" {
 		ext = ".zip"
 	}
@@ -164,7 +151,7 @@ func DownloadURLForVersion(ver string) string {
 
 // platformAssetName returns the archive filename for the current OS/arch.
 func platformAssetName(ver string) string {
-	ext := "tar.gz"
+	ext := "tgz"
 	if runtime.GOOS == "windows" {
 		ext = "zip"
 	}
@@ -173,17 +160,6 @@ func platformAssetName(ver string) string {
 		osName = "macosx"
 	}
 	return fmt.Sprintf("bce-%s-%s-%s.%s", osName, ver, runtime.GOARCH, ext)
-}
-
-// downloadURLFromAssets returns the browser_download_url for assetName from the
-// assets list, or falls back to constructing the URL from the release tag.
-func downloadURLFromAssets(assets []githubAsset, tag, assetName string) string {
-	for _, a := range assets {
-		if a.Name == assetName {
-			return a.BrowserDownloadURL
-		}
-	}
-	return fmt.Sprintf("%s/%s/%s", downloadBaseURL, tag, assetName)
 }
 
 // resolveExe returns the real path of the currently-running executable,
