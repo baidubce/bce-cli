@@ -1,0 +1,62 @@
+name: Bump Version
+
+on:
+  repository_dispatch:
+    types: [metadata-updated]
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          token: ${{ secrets.RELEASE_PAT }}
+
+      - name: Sync metadata submodule
+        run: |
+          META_SHA=$(jq -r '.client_payload.sha // empty' "$GITHUB_EVENT_PATH")
+          git submodule sync --recursive
+          git submodule update --init --recursive internal/meta/bce-openapi-meta
+          git -C internal/meta/bce-openapi-meta fetch origin master
+          if [ -n "$META_SHA" ]; then
+            git -C internal/meta/bce-openapi-meta checkout "$META_SHA"
+          else
+            git -C internal/meta/bce-openapi-meta checkout origin/master
+          fi
+
+      - name: Bump version and update CHANGELOG
+        id: version
+        run: |
+          # 读取最新版本，与 Java incrementBceCliVersion 逻辑一致：patch +1
+          LATEST=$(grep -m1 -oP '(?<=Version: v)\d+\.\d+\.\d+' CHANGELOG.md 2>/dev/null || echo "0.0.0")
+          MAJOR=$(echo $LATEST | cut -d. -f1)
+          MINOR=$(echo $LATEST | cut -d. -f2)
+          PATCH=$(echo $LATEST | cut -d. -f3)
+          NEXT="v${MAJOR}.${MINOR}.$((PATCH+1))"
+          TODAY=$(date +%Y-%m-%d)
+          DESC=$(jq -r '.client_payload.description // "metadata updated"' "$GITHUB_EVENT_PATH")
+          DESC="${DESC:-metadata updated}"
+          DESC=$(printf '%s' "$DESC" | tr '\r\n' ' ')
+          printf "%s Version: %s\n- %s\n\n%s" \
+            "$TODAY" "$NEXT" "$DESC" "$(cat CHANGELOG.md)" > CHANGELOG.md
+          echo "tag=$NEXT" >> $GITHUB_OUTPUT
+          echo "message=$DESC" >> $GITHUB_OUTPUT
+          echo "Bumped to $NEXT"
+
+      - name: Commit CHANGELOG
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md internal/meta/bce-openapi-meta
+          git commit --no-verify -m "${{ steps.version.outputs.message }}"
+          git push origin HEAD:main
+
+      - name: Push tag (triggers release.yml via goreleaser)
+        run: |
+          git tag ${{ steps.version.outputs.tag }}
+          git push origin ${{ steps.version.outputs.tag }}

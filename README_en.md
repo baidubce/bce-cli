@@ -33,25 +33,25 @@ Extract the archive and move the `bce` binary to a directory in your `$PATH`:
 
 ```bash
 # macOS (Apple Silicon)
-tar -xzf bce-cli-darwin-arm64.tar.gz
+tar -xzf bce-macosx-0.1.0-arm64.tar.gz
 sudo mv bce /usr/local/bin/
 
 # macOS (Intel)
-tar -xzf bce-cli-darwin-amd64.tar.gz
+tar -xzf bce-macosx-0.1.0-amd64.tar.gz
 sudo mv bce /usr/local/bin/
 
 # Linux (amd64)
-tar -xzf bce-cli-linux-amd64.tar.gz
+tar -xzf bce-linux-0.1.0-amd64.tar.gz
 sudo mv bce /usr/local/bin/
 ```
 
 **Windows**
 
-Download `bce-cli-windows-amd64.zip`, extract it, and place `bce.exe` in a directory that is on your `PATH`. Alternatively, run the following in PowerShell to install it to your user directory:
+Download `bce-windows-0.1.0-amd64.zip`, extract it, and place `bce.exe` in a directory that is on your `PATH`. Alternatively, run the following in PowerShell to install it to your user directory:
 
 ```powershell
 # Extract (PowerShell 5.1+)
-Expand-Archive bce-cli-windows-amd64.zip -DestinationPath .
+Expand-Archive bce-windows-0.1.0-amd64.zip -DestinationPath .
 
 # Create a user bin directory and add it to PATH (run once)
 New-Item -ItemType Directory -Force "$env:USERPROFILE\bin" | Out-Null

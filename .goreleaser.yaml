@@ -46,5 +46,5 @@ changelog:
 
 release:
   github:
-    owner: 你的用户名
+    owner: baidubce
     name: bce-cli
