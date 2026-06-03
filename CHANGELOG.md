@@ -1,3 +1,6 @@
+2026-06-03 Version: v0.1.4
+- RAPIDFS多个接口移除query.action字段
+
 2026-06-03 Version: v0.1.3
 - CCR SDK版本更新
 
