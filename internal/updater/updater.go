@@ -30,8 +30,8 @@ type ReleaseInfo struct {
 }
 
 type githubRelease struct {
-	TagName string          `json:"tag_name"`
-	Assets  []githubAsset   `json:"assets"`
+	TagName string        `json:"tag_name"`
+	Assets  []githubAsset `json:"assets"`
 }
 
 type githubAsset struct {
@@ -69,7 +69,7 @@ func CheckLatest() (*ReleaseInfo, error) {
 	}
 
 	ver := strings.TrimPrefix(rel.TagName, "v")
-	assetName := platformAssetName()
+	assetName := platformAssetName(ver)
 	downloadURL := downloadURLFromAssets(rel.Assets, rel.TagName, assetName)
 
 	return &ReleaseInfo{Version: ver, DownloadURL: downloadURL}, nil
@@ -159,16 +159,20 @@ func DownloadURLForVersion(ver string) string {
 	if !strings.HasPrefix(tag, "v") {
 		tag = "v" + tag
 	}
-	return fmt.Sprintf("%s/%s/%s", downloadBaseURL, tag, platformAssetName())
+	return fmt.Sprintf("%s/%s/%s", downloadBaseURL, tag, platformAssetName(strings.TrimPrefix(tag, "v")))
 }
 
 // platformAssetName returns the archive filename for the current OS/arch.
-func platformAssetName() string {
+func platformAssetName(ver string) string {
 	ext := "tar.gz"
 	if runtime.GOOS == "windows" {
 		ext = "zip"
 	}
-	return fmt.Sprintf("bce-cli-%s-%s.%s", runtime.GOOS, runtime.GOARCH, ext)
+	osName := runtime.GOOS
+	if osName == "darwin" {
+		osName = "macosx"
+	}
+	return fmt.Sprintf("bce-%s-%s-%s.%s", osName, ver, runtime.GOARCH, ext)
 }
 
 // downloadURLFromAssets returns the browser_download_url for assetName from the

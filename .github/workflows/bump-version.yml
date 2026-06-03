@@ -1,0 +1,49 @@
+name: Bump Version
+
+on:
+  repository_dispatch:
+    types: [metadata-updated]
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PAT }}
+
+      - name: Bump version and update CHANGELOG
+        id: version
+        run: |
+          # 读取最新版本，与 Java incrementBceCliVersion 逻辑一致：patch +1
+          LATEST=$(grep -m1 -oP '(?<=Version: v)\d+\.\d+\.\d+' CHANGELOG.md 2>/dev/null || echo "0.0.0")
+          MAJOR=$(echo $LATEST | cut -d. -f1)
+          MINOR=$(echo $LATEST | cut -d. -f2)
+          PATCH=$(echo $LATEST | cut -d. -f3)
+          NEXT="v${MAJOR}.${MINOR}.$((PATCH+1))"
+          TODAY=$(date +%Y-%m-%d)
+          DESC='${{ github.event.client_payload.description }}'
+          DESC="${DESC:-metadata updated}"
+          # 去掉可能影响 shell 的特殊字符，只保留安全内容
+          DESC=$(echo "$DESC" | tr -d "'\`\"\\\\")
+          printf "%s Version: %s\n- %s\n\n%s" \
+            "$TODAY" "$NEXT" "$DESC" "$(cat CHANGELOG.md)" > CHANGELOG.md
+          echo "tag=$NEXT" >> $GITHUB_OUTPUT
+          echo "Bumped to $NEXT"
+
+      - name: Commit CHANGELOG
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit --no-verify -m "release ${{ steps.version.outputs.tag }}"
+          git push origin master
+
+      - name: Push tag (triggers release.yml via goreleaser)
+        run: |
+          git tag ${{ steps.version.outputs.tag }}
+          git push origin ${{ steps.version.outputs.tag }}

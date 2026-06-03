@@ -1,11 +1,4 @@
-# Changelog
-
-## [0.1.0] - 2026-05-15
-
-首个正式发布版本。
-
-### 新增
-
+2026-05-15 Version: v0.1.0
 - **多 Profile 管理**：支持多账号配置，`bce configure` 子命令完整覆盖增删改查切换
 - **灵活参数格式**：复杂参数支持 JSON 字符串和 `--unfold` KV 点号两种传入方式
 - **`--cli-input-json`**：从 JSON 文件加载请求参数，支持 `--generate-cli-skeleton` 生成参数骨架

@@ -33,25 +33,25 @@
 
 ```bash
 # macOS (Apple Silicon)
-tar -xzf bce-cli-darwin-arm64.tar.gz
+tar -xzf bce-macosx-0.1.0-arm64.tar.gz
 sudo mv bce /usr/local/bin/
 
 # macOS (Intel)
-tar -xzf bce-cli-darwin-amd64.tar.gz
+tar -xzf bce-macosx-0.1.0-amd64.tar.gz
 sudo mv bce /usr/local/bin/
 
 # Linux (amd64)
-tar -xzf bce-cli-linux-amd64.tar.gz
+tar -xzf bce-linux-0.1.0-amd64.tar.gz
 sudo mv bce /usr/local/bin/
 ```
 
 **Windows**
 
-下载 `bce-cli-windows-amd64.zip`，解压后将 `bce.exe` 放到已加入 `PATH` 的目录，或在 PowerShell 中执行以下命令将其安装到用户目录：
+下载 `bce-windows-0.1.0-amd64.zip`，解压后将 `bce.exe` 放到已加入 `PATH` 的目录，或在 PowerShell 中执行以下命令将其安装到用户目录：
 
 ```powershell
 # 解压（PowerShell 5.1+）
-Expand-Archive bce-cli-windows-amd64.zip -DestinationPath .
+Expand-Archive bce-windows-0.1.0-amd64.zip -DestinationPath .
 
 # 创建用户 bin 目录并加入 PATH（首次使用执行一次）
 New-Item -ItemType Directory -Force "$env:USERPROFILE\bin" | Out-Null
