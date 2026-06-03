@@ -52,8 +52,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          COMMIT_MSG=$(jq -r '.client_payload.description // "metadata updated"' "$GITHUB_EVENT_PATH")
+          COMMIT_MSG="${COMMIT_MSG:-metadata updated}"
+          COMMIT_MSG=$(printf '%s' "$COMMIT_MSG" | tr '\r\n' ' ')
+          printf '%s\n' "$COMMIT_MSG" > "${RUNNER_TEMP}/commit-message.txt"
           git add CHANGELOG.md internal/meta/bce-openapi-meta
-          git commit --no-verify -m "${{ steps.version.outputs.message }}"
+          git commit --no-verify -F "${RUNNER_TEMP}/commit-message.txt"
           git push origin HEAD:main
 
       - name: Push tag (triggers release.yml via goreleaser)

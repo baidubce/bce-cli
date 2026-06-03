@@ -25,18 +25,20 @@ jobs:
       - name: Extract release notes from CHANGELOG
         run: |
           TAG="${GITHUB_REF_NAME}"
+          NOTES_FILE="${RUNNER_TEMP}/release-notes.md"
           awk -v tag="$TAG" '
             $0 ~ "Version: " tag "$" { found = 1; next }
             found && $0 ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2} Version: v[0-9]+\.[0-9]+\.[0-9]+$/ { exit }
             found { print }
-          ' CHANGELOG.md > release-notes.md
-          if [ ! -s release-notes.md ]; then
-            echo "Release $TAG" > release-notes.md
+          ' CHANGELOG.md > "$NOTES_FILE"
+          if [ ! -s "$NOTES_FILE" ]; then
+            echo "Release $TAG" > "$NOTES_FILE"
           fi
+          echo "release notes written to $NOTES_FILE"
 
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: latest
-          args: release --clean --release-notes=release-notes.md
+          args: release --clean --release-notes=${{ runner.temp }}/release-notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
