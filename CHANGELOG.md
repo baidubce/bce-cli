@@ -1,3 +1,6 @@
+2026-06-04 Version: v0.1.6
+- [ops] sync all merged metadata for pfs
+
 2026-06-04 Version: v0.1.5
 - [ops] sync all merged metadata for bls
 
