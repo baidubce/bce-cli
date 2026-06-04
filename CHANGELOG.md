@@ -1,3 +1,6 @@
+2026-06-04 Version: v0.1.5
+- [ops] sync all merged metadata for bls
+
 2026-06-03 Version: v0.1.4
 - RAPIDFS多个接口移除query.action字段
 
