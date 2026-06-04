@@ -1,3 +1,6 @@
+2026-06-04 Version: v0.1.7
+- [ops] sync all merged metadata for RAPIDFS
+
 2026-06-04 Version: v0.1.6
 - [ops] sync all merged metadata for pfs
 
