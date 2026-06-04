@@ -1,3 +1,15 @@
+2026-06-03 Version: v0.1.4
+- RAPIDFS多个接口移除query.action字段
+
+2026-06-03 Version: v0.1.3
+- CCR SDK版本更新
+
+2026-06-03 Version: v0.1.2
+- 新增PFS数据流动任务与生命周期规则相关接口
+
+2026-06-03 Version: v0.1.1
+- workflows
+
 2026-05-15 Version: v0.1.0
 - **多 Profile 管理**：支持多账号配置，`bce configure` 子命令完整覆盖增删改查切换
 - **灵活参数格式**：复杂参数支持 JSON 字符串和 `--unfold` KV 点号两种传入方式
