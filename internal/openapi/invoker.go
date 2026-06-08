@@ -194,6 +194,9 @@ func (inv *Invoker) Call() (map[string]interface{}, error) {
 			}
 			fmt.Fprintf(os.Stderr, "[DRY-RUN] Query: %s\n", strings.Join(parts, "&"))
 		}
+		for k, v := range headerParams {
+			fmt.Fprintf(os.Stderr, "[DRY-RUN] Header: %s: %s\n", k, v)
+		}
 		if len(bodyParams) > 0 {
 			raw, _ := json.MarshalIndent(bodyParams, "", "  ")
 			fmt.Fprintf(os.Stderr, "[DRY-RUN] Body:\n%s\n", raw)
