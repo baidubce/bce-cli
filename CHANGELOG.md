@@ -1,3 +1,6 @@
+2026-06-11 Version: v0.1.8
+- Try to update baidu-cc client, current version is [2.1.158.1] ...
+
 2026-06-04 Version: v0.1.7
 - [ops] sync all merged metadata for RAPIDFS
 
