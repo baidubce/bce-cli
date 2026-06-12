@@ -1,3 +1,6 @@
+2026-06-12 Version: v0.1.9
+- AIHC SDK版本更新
+
 2026-06-11 Version: v0.1.8
 - Try to update baidu-cc client, current version is [2.1.158.1] ...
 
