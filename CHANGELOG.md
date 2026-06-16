@@ -1,3 +1,6 @@
+2026-06-16 Version: v0.1.13
+- RAPIDFS
+
 2026-06-15 Version: v0.1.12
 - AIHC SDK版本更新
 
