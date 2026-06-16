@@ -1,3 +1,6 @@
+2026-06-16 Version: v0.1.15
+- Try to update baidu-cc client, current version is [2.1.158.2] ...
+
 2026-06-16 Version: v0.1.14
 - 新增ET删除物理专线接口
 
