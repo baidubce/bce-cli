@@ -1,3 +1,6 @@
+2026-06-22 Version: v0.1.32
+- BLS快速查询接口新增logStoreType字段
+
 2026-06-22 Version: v0.1.31
 - BCC新增快照管理接口及实例券价格字段
 
