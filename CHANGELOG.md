@@ -1,3 +1,6 @@
+2026-06-26 Version: v0.1.40
+- BCM监控接口修复timestamp字段拼写错误
+
 2026-06-25 Version: v0.1.39
 - BLB
 
