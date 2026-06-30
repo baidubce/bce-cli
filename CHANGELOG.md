@@ -1,3 +1,6 @@
+2026-06-30 Version: v0.1.46
+- BLB
+
 2026-06-29 Version: v0.1.45
 - BLS SDK版本更新
 
