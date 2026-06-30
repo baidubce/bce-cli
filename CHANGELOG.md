@@ -1,3 +1,6 @@
+2026-06-30 Version: v0.1.48
+- BLS SDK版本更新
+
 2026-06-30 Version: v0.1.47
 - IAM SDK版本更新
 
