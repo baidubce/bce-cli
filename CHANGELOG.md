@@ -1,3 +1,6 @@
+2026-07-06 Version: v0.1.50
+- PrivateZone
+
 2026-06-30 Version: v0.1.49
 - 新增DNS解析器及转发规则管理接口，优化VPC关联能力
 
