@@ -1,3 +1,6 @@
+2026-07-07 Version: v0.1.51
+- 新增AIHC训练任务全套管理接口
+
 2026-07-06 Version: v0.1.50
 - PrivateZone
 
