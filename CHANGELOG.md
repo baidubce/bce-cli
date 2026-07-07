@@ -1,3 +1,6 @@
+2026-07-07 Version: v0.1.52
+- 新增AGENTIDENTITY身份管理全套接口
+
 2026-07-07 Version: v0.1.51
 - 新增AIHC训练任务全套管理接口
 
