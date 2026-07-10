@@ -1,3 +1,6 @@
+2026-07-10 Version: v0.1.53
+- 创建PFS实例接口新增zone字段
+
 2026-07-07 Version: v0.1.52
 - 新增AGENTIDENTITY身份管理全套接口
 
