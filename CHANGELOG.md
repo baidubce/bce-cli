@@ -1,3 +1,6 @@
+2026-07-14 Version: v0.1.58
+- VPC SDK版本更新
+
 2026-07-14 Version: v0.1.57
 - Try to update baidu-cc client, current version is [2.1.201.1] ...
 
