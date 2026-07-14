@@ -1,3 +1,6 @@
+2026-07-14 Version: v0.1.57
+- Try to update baidu-cc client, current version is [2.1.201.1] ...
+
 2026-07-13 Version: v0.1.56
 - 新增OOS运维模板与执行管理V2接口
 
