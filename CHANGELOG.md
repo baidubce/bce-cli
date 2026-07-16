@@ -1,3 +1,6 @@
+2026-07-16 Version: v0.1.65
+- CloudAssistant
+
 2026-07-16 Version: v0.1.64
 - 新增CLOUDASSISTANT命令管理及执行相关接口
 
