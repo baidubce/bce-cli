@@ -1,3 +1,6 @@
+2026-07-16 Version: v0.1.68
+- BLB应用型负载均衡releaseAppBlb接口新增clientToken字段
+
 2026-07-16 Version: v0.1.67
 - OOS
 
