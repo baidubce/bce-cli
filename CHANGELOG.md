@@ -1,3 +1,6 @@
+2026-07-17 Version: v0.1.69
+- CLOUDASSISTANT SDK版本更新
+
 2026-07-16 Version: v0.1.68
 - BLB应用型负载均衡releaseAppBlb接口新增clientToken字段
 
