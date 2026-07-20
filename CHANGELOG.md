@@ -1,3 +1,6 @@
+2026-07-20 Version: v0.1.70
+- Try to update baidu-cc client, current version is [2.1.201.4] ...
+
 2026-07-17 Version: v0.1.69
 - CLOUDASSISTANT SDK版本更新
 
