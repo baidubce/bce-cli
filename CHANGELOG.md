@@ -1,3 +1,6 @@
+2026-07-21 Version: v0.1.72
+- AS SDK版本更新
+
 2026-07-21 Version: v0.1.71
 - 完善IAM永久及短期API Key接口返回字段
 
