@@ -1,3 +1,6 @@
+2026-07-21 Version: v0.1.71
+- 完善IAM永久及短期API Key接口返回字段
+
 2026-07-20 Version: v0.1.70
 - Try to update baidu-cc client, current version is [2.1.201.4] ...
 
