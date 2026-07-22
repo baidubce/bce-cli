@@ -1,3 +1,6 @@
+2026-07-22 Version: v0.1.74
+- CloudAssistant
+
 2026-07-21 Version: v0.1.73
 - AS
 
