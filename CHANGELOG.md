@@ -1,3 +1,6 @@
+2026-07-23 Version: v0.1.75
+- CLOUDASSISTANT SDK版本更新
+
 2026-07-22 Version: v0.1.74
 - CloudAssistant
 
