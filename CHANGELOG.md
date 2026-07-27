@@ -1,3 +1,6 @@
+2026-07-27 Version: v0.1.76
+- OOS运维执行与模板接口字段变更
+
 2026-07-23 Version: v0.1.75
 - CLOUDASSISTANT SDK版本更新
 
