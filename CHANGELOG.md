@@ -1,3 +1,6 @@
+2026-07-28 Version: v0.1.78
+- BLB
+
 2026-07-27 Version: v0.1.77
 - CLOUDASSISTANT SDK版本更新
 
