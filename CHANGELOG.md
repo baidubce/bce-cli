@@ -1,3 +1,6 @@
+2026-08-17 Version: v0.1.94
+- Try to update baidu-cc client, current version is [2.1.221.2] ...
+
 2026-08-14 Version: v0.1.93
 - AIGW
 
