@@ -12,7 +12,7 @@ LDFLAGS := -X '$(VERSION_PKG).Version=$(VERSION)' \
 .PHONY: build clean
 
 build:
-	go build -ldflags "$(LDFLAGS)" -o bce .
+	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o bce .
 
 clean:
 	rm -f bce bce.exe
