@@ -1,3 +1,6 @@
+2026-08-18 Version: v0.1.98
+- Finance
+
 2026-08-18 Version: v0.1.97
 - Try to update baidu-cc client, current version is [2.1.221.4] ...
 
