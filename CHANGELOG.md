@@ -1,3 +1,6 @@
+2026-08-18 Version: v0.1.96
+- Try to update baidu-cc client, current version is [2.1.221.3] ...
+
 2026-08-17 Version: v0.1.95
 - PFS
 
