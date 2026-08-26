@@ -1,3 +1,6 @@
+2026-08-26 Version: v0.1.100
+- BCI SDK版本更新
+
 2026-08-24 Version: v0.1.99
 - PFS
 
