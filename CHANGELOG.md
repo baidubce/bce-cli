@@ -1,3 +1,6 @@
+2026-08-27 Version: v0.1.102
+- IAM createRole接口新增grantType字段
+
 2026-08-26 Version: v0.1.101
 - 新增BCM指标目录及云产品资源目录查询接口
 
