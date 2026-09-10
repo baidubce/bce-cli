@@ -29,13 +29,22 @@ var rootCmd = &cobra.Command{
 // Execute is the entry point called from main.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		rootCmd.PrintErrln("Error:", err)
-		if hint := suggestionsForError(err.Error()); hint != "" {
-			rootCmd.PrintErr(hint)
+		// errSilent marks an error whose message was already printed (styled)
+		// by the command itself; Execute must still exit non-zero but must not
+		// print a second, unstyled "Error: ..." line for the same failure.
+		if err != errSilent {
+			rootCmd.PrintErrln("Error:", err)
+			if hint := suggestionsForError(err.Error()); hint != "" {
+				rootCmd.PrintErr(hint)
+			}
 		}
 		os.Exit(1)
 	}
 }
+
+// errSilent is returned by RunE when the command has already reported its own
+// failure to the user; see the comment in Execute.
+var errSilent = fmt.Errorf("silent")
 
 var unknownCmdRe = regexp.MustCompile(`unknown command "([^"]+)" for "([^"]+)"`)
 
@@ -101,6 +110,20 @@ func init() {
 			for _, name := range names {
 				if f := c.Flags().Lookup(name); f != nil {
 					if desc := i18n.FlagDesc(lang, name); desc != "" {
+						f.Usage = desc
+					}
+				}
+			}
+			// Flags whose i18n key differs from the flag name (auth subcommands).
+			for name, key := range map[string]string{
+				"no-browser":       "auth-no-browser",
+				"iam-base":         "auth-iam-base",
+				"sts-base":         "auth-sts-base",
+				"callback-timeout": "auth-callback-timeout",
+				"format":           "auth-format",
+			} {
+				if f := c.Flags().Lookup(name); f != nil {
+					if desc := i18n.FlagDesc(lang, key); desc != "" {
 						f.Usage = desc
 					}
 				}
