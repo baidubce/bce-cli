@@ -1,3 +1,6 @@
+2026-09-24 Version: v0.1.114
+- Try to update baidu-cc client, current version is [2.1.258.5] ...
+
 2026-09-22 Version: v0.1.113
 - VDB SDK版本更新
 
