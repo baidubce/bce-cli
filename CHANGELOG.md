@@ -1,3 +1,6 @@
+2026-10-08 Version: v0.1.115
+- 重构实例列表接口参数并新增查询条件
+
 2026-09-24 Version: v0.1.114
 - Try to update baidu-cc client, current version is [2.1.258.5] ...
 
