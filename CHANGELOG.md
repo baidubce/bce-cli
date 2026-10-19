@@ -1,3 +1,6 @@
+2026-10-19 Version: v0.1.124
+- VPC
+
 2026-10-19 Version: v0.1.123
 - VPC SDK版本更新
 
