@@ -1,3 +1,6 @@
+2026-10-29 Version: v0.1.136
+- RAPIDFS
+
 2026-10-29 Version: v0.1.135
 - SCS SDK版本更新
 
