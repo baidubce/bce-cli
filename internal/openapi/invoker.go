@@ -116,18 +116,35 @@ func resolveEndpoint(p *config.Profile, ov *config.FlagOverrides, product *meta.
 	if region == "" {
 		region = p.Region
 	}
-	if region == "" {
-		return "", fmt.Errorf("region is required for service %q: use --region or set it in your profile (e.g. bce configure set --region bj)", product.Code)
-	}
-	if ep, ok := product.Endpoint[region]; ok {
+	if ep, ok := product.Endpoint[region]; ok && region != "" {
 		return ep, nil
 	}
-	supported := make([]string, 0, len(product.Endpoint))
-	for r := range product.Endpoint {
-		supported = append(supported, r)
+	// Global services are region-agnostic: fall back to the global endpoint for
+	// any region that has no dedicated endpoint, including an unset region.
+	if ep, ok := product.Endpoint[globalRegion]; ok {
+		if ov.Debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] region %q has no endpoint for service %q, using global endpoint %s\n", region, product.Code, ep)
+		}
+		return ep, nil
 	}
-	sort.Strings(supported)
-	return "", fmt.Errorf("region %q is not supported for service %q (supported: %s)", region, product.Code, strings.Join(supported, ", "))
+	if region == "" {
+		return "", fmt.Errorf("region is required for service %q (supported: %s): use --region, set BCE_REGION, or set it in your profile (e.g. bce configure set --region bj)",
+			product.Code, supportedRegions(product))
+	}
+	return "", fmt.Errorf("region %q is not supported for service %q (supported: %s)", region, product.Code, supportedRegions(product))
+}
+
+// globalRegion is the endpoint key used by region-agnostic services in products.json.
+const globalRegion = "global"
+
+// supportedRegions returns the product's configured regions as a sorted, comma-separated list.
+func supportedRegions(product *meta.Product) string {
+	regions := make([]string, 0, len(product.Endpoint))
+	for r := range product.Endpoint {
+		regions = append(regions, r)
+	}
+	sort.Strings(regions)
+	return strings.Join(regions, ", ")
 }
 
 // Call executes the API request and returns the parsed JSON response.
