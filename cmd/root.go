@@ -97,11 +97,8 @@ func init() {
 		// flags on any subcommand (e.g. --yes on upgrade/delete, --version on upgrade).
 		var refreshFlagDescs func(*cobra.Command)
 		refreshFlagDescs = func(c *cobra.Command) {
-			for _, name := range []string{
-				"profile", "region", "endpoint", "scheme", "language", "output", "query",
-				"unfold", "dry-run", "debug", "no-color", "timeout",
-				"upgrade-yes", "upgrade-version", "cfg-delete-yes",
-			} {
+			names := append(openapi.GlobalFlagNames(), "upgrade-yes", "upgrade-version", "cfg-delete-yes")
+			for _, name := range names {
 				if f := c.Flags().Lookup(name); f != nil {
 					if desc := i18n.FlagDesc(lang, name); desc != "" {
 						f.Usage = desc

@@ -94,7 +94,7 @@ func buildActionCmdStub(p *meta.Product, apiName, summary string) *cobra.Command
 			r := getApiResolver(lang, strings.ToLower(p.Code), apiName)
 			completions := make([]string, 0, len(api.Parameters))
 			for _, param := range api.Parameters {
-				flag := "--" + param.Name
+				flag := "--" + cliParamName(param.Name)
 				if strings.HasPrefix(flag, toComplete) {
 					completions = append(completions, flag+"\t"+r.Resolve(param.DescKey))
 				}
@@ -144,11 +144,19 @@ func runAction(cmd *cobra.Command, p *meta.Product, api *meta.Api, args []string
 		if err != nil {
 			return fmt.Errorf("--cli-input-json: %w", err)
 		}
+		fileParams, err = resolveFileParams(fileParams, api.Parameters)
+		if err != nil {
+			return fmt.Errorf("--cli-input-json: %w", err)
+		}
 		for k, v := range fileParams {
 			if _, exists := apiParams[k]; !exists {
 				apiParams[k] = v
 			}
 		}
+	}
+
+	if err := checkShadowedParams(api.Parameters, apiParams, globalFlags); err != nil {
+		return err
 	}
 
 	cfg, err := config.Load()
@@ -226,6 +234,51 @@ func runAction(cmd *cobra.Command, p *meta.Product, api *meta.Api, args []string
 	})
 }
 
+// bizPrefix is prepended to API parameter names that collide with a global flag,
+// e.g. an API's own "region" parameter is exposed as --biz-region. Requests are
+// still sent with the original parameter name.
+const bizPrefix = "biz-"
+
+// globalFlags lists every CLI-level flag accepted by action commands, in help order.
+var globalFlags = []struct {
+	name, typ  string
+	pagination bool // listed under "Pagination Flags", only for paginated APIs
+}{
+	{"profile", "string", false},
+	{"region", "string", false},
+	{"endpoint", "string", false},
+	{"scheme", "string", false},
+	{"language", "string", false},
+	{"output", "string", false},
+	{"query", "string", false},
+	{"timeout", "int", false},
+	{"cli-input-json", "string", false},
+	{"unfold", "", false},
+	{"generate-cli-skeleton", "", false},
+	{"dry-run", "", false},
+	{"debug", "", false},
+	{"no-color", "", false},
+	{"pager", "", true},
+	{"total-count", "int", true},
+}
+
+var globalFlagSet = func() map[string]bool {
+	m := make(map[string]bool, len(globalFlags))
+	for _, f := range globalFlags {
+		m[f.name] = true
+	}
+	return m
+}()
+
+// GlobalFlagNames returns the names of all CLI-level flags accepted by action commands.
+func GlobalFlagNames() []string {
+	names := make([]string, 0, len(globalFlags))
+	for _, f := range globalFlags {
+		names = append(names, f.name)
+	}
+	return names
+}
+
 // parseArgs splits raw args into API parameters and recognised global flags.
 //
 // Supported input forms for each --key:
@@ -243,16 +296,6 @@ func parseArgs(args []string, schemaParams []meta.Parameter) (apiParams map[stri
 	globals = make(map[string]string)
 	listAccum := make(map[string][]string) // list-param name → accumulated JSON objects
 
-	globalFlagSet := map[string]bool{
-		"profile": true, "region": true, "endpoint": true, "scheme": true,
-		"language": true, "output": true, "query": true,
-		"dry-run": true, "debug": true, "no-color": true,
-		"unfold": true, "cli-input-json": true,
-		"timeout":     true,
-		"pager":       true,
-		"total-count": true,
-	}
-
 	// Pre-scan for --unfold so KV mode can be enabled even if the flag appears after params.
 	unfold := false
 	for _, a := range args {
@@ -262,10 +305,7 @@ func parseArgs(args []string, schemaParams []meta.Parameter) (apiParams map[stri
 		}
 	}
 
-	paramTypeMap := make(map[string]string, len(schemaParams))
-	for _, p := range schemaParams {
-		paramTypeMap[p.Name] = strings.ToLower(p.Type)
-	}
+	paramTypeMap := paramTypes(schemaParams)
 
 	i := 0
 	for i < len(args) {
@@ -276,10 +316,24 @@ func parseArgs(args []string, schemaParams []meta.Parameter) (apiParams map[stri
 		key := strings.TrimPrefix(arg, "--")
 
 		// --key=value form
+		var inlineVal *string
 		if idx := strings.IndexByte(key, '='); idx >= 0 {
 			val := key[idx+1:]
 			key = key[:idx]
-			store(globalFlagSet, globals, apiParams, key, val)
+			inlineVal = &val
+		}
+
+		name, isGlobal, err := resolveFlag(key, paramTypeMap)
+		if err != nil {
+			return nil, nil, err
+		}
+		target := apiParams
+		if isGlobal {
+			target = globals
+		}
+
+		if inlineVal != nil {
+			target[name] = *inlineVal
 			i++
 			continue
 		}
@@ -288,17 +342,20 @@ func parseArgs(args []string, schemaParams []meta.Parameter) (apiParams map[stri
 
 		// no value follows → boolean flag
 		if i >= len(args) || strings.HasPrefix(args[i], "--") {
-			store(globalFlagSet, globals, apiParams, key, "true")
+			target[name] = "true"
 			continue
 		}
 
 		firstToken := args[i]
-		paramType := paramTypeMap[key]
+		paramType := ""
+		if !isGlobal {
+			paramType = paramTypeMap[name]
+		}
 		isStructured := paramType == "list" || paramType == "object"
 
 		// --output may be followed by sub-params (cols=, rows=) as separate tokens.
 		// Consume them all into a single space-joined value.
-		if key == "output" {
+		if isGlobal && name == "output" {
 			var parts []string
 			parts = append(parts, firstToken)
 			i++
@@ -306,13 +363,13 @@ func parseArgs(args []string, schemaParams []meta.Parameter) (apiParams map[stri
 				parts = append(parts, args[i])
 				i++
 			}
-			store(globalFlagSet, globals, apiParams, key, strings.Join(parts, " "))
+			target[name] = strings.Join(parts, " ")
 			continue
 		}
 
 		// JSON mode: value is a literal JSON string (starts with { or [)
 		if strings.HasPrefix(firstToken, "{") || strings.HasPrefix(firstToken, "[") {
-			store(globalFlagSet, globals, apiParams, key, firstToken)
+			target[name] = firstToken
 			i++
 			continue
 		}
@@ -332,16 +389,16 @@ func parseArgs(args []string, schemaParams []meta.Parameter) (apiParams map[stri
 			}
 			obj := kvTokensToJSON(kvTokens)
 			if paramType == "list" {
-				listAccum[key] = append(listAccum[key], obj)
+				listAccum[name] = append(listAccum[name], obj)
 			} else {
 				// Object: only one occurrence makes sense
-				apiParams[key] = obj
+				apiParams[name] = obj
 			}
 			continue
 		}
 
 		// Plain single-value mode
-		store(globalFlagSet, globals, apiParams, key, firstToken)
+		target[name] = firstToken
 		i++
 	}
 
@@ -353,12 +410,55 @@ func parseArgs(args []string, schemaParams []meta.Parameter) (apiParams map[stri
 	return apiParams, globals, nil
 }
 
-func store(globalSet map[string]bool, globals, apiParams map[string]string, key, val string) {
-	if globalSet[key] {
-		globals[key] = val
-	} else {
-		apiParams[key] = val
+// paramTypes maps each top-level API parameter name to its lower-cased type.
+func paramTypes(schemaParams []meta.Parameter) map[string]string {
+	m := make(map[string]string, len(schemaParams))
+	for _, p := range schemaParams {
+		m[p.Name] = strings.ToLower(p.Type)
 	}
+	return m
+}
+
+// resolveFlag maps a user-facing flag name to either a global flag or an API
+// parameter name. --biz-<name> is accepted only when the API really has a
+// parameter <name> that collides with a global flag.
+func resolveFlag(key string, paramTypeMap map[string]string) (name string, isGlobal bool, err error) {
+	if orig, ok := strings.CutPrefix(key, bizPrefix); ok && globalFlagSet[orig] {
+		if _, exists := paramTypeMap[orig]; !exists {
+			return "", false, fmt.Errorf("unknown parameter --%s: this API has no %q parameter", key, orig)
+		}
+		return orig, false, nil
+	}
+	if globalFlagSet[key] {
+		return key, true, nil
+	}
+	return key, false, nil
+}
+
+// cliParamName returns the flag name users type for a top-level API parameter.
+func cliParamName(name string) string {
+	if globalFlagSet[name] {
+		return bizPrefix + name
+	}
+	return name
+}
+
+// checkShadowedParams catches a required API parameter that collides with a
+// global flag (e.g. "region") being passed as the global flag instead of --biz-<name>.
+func checkShadowedParams(schemaParams []meta.Parameter, apiParams, globals map[string]string) error {
+	for _, p := range schemaParams {
+		if !p.Required || p.Default != nil || !globalFlagSet[p.Name] {
+			continue
+		}
+		if _, ok := apiParams[p.Name]; ok {
+			continue
+		}
+		if _, ok := globals[p.Name]; ok {
+			return fmt.Errorf("missing required parameter --%s: --%s sets the global %s, pass this API's %q parameter as --%s",
+				cliParamName(p.Name), p.Name, p.Name, p.Name, cliParamName(p.Name))
+		}
+	}
+	return nil
 }
 
 // kvTokensToJSON converts ["k1=v1", "a.b=v2"] → {"k1":"v1","a":{"b":"v2"}}.
@@ -459,7 +559,7 @@ func printActionHelp(cmd *cobra.Command, p *meta.Product, api *meta.Api) {
 			req = i18n.T(lang, "required")
 		}
 		desc := r.Resolve(param.DescKey)
-		fmt.Fprintf(w, "      --%-22s %-10s %-10s %s\n", param.Name, param.Type, req, desc)
+		fmt.Fprintf(w, "      --%-22s %-10s %-10s %s\n", cliParamName(param.Name), param.Type, req, desc)
 		if len(param.SubParameters) > 0 {
 			printSubParams(w, r, param.SubParameters, 0)
 			fmt.Fprintf(w, "        %s\n", i18n.T(lang, "json-format"))
@@ -475,43 +575,24 @@ func printActionHelp(cmd *cobra.Command, p *meta.Product, api *meta.Api) {
 	}
 	fmt.Fprintf(w, "\nGlobal Flags:\n")
 	lang := i18n.GetLanguage()
-	globalFlags := []struct {
-		name string
-		typ  string
-	}{
-		{"profile", "string"},
-		{"region", "string"},
-		{"endpoint", "string"},
-		{"scheme", "string"},
-		{"language", "string"},
-		{"output", "string"},
-		{"query", "string"},
-		{"timeout", "int"},
-		{"cli-input-json", "string"},
-		{"unfold", ""},
-		{"generate-cli-skeleton", ""},
-		{"dry-run", ""},
-		{"debug", ""},
-		{"no-color", ""},
+	printFlag := func(name, typ string) {
+		desc := i18n.FlagDesc(lang, name)
+		if typ != "" {
+			fmt.Fprintf(w, "      --%-14s %-8s %s\n", name, typ, desc)
+		} else {
+			fmt.Fprintf(w, "      --%-23s %s\n", name, desc)
+		}
 	}
 	for _, f := range globalFlags {
-		desc := i18n.FlagDesc(lang, f.name)
-		if f.typ != "" {
-			fmt.Fprintf(w, "      --%-14s %-8s %s\n", f.name, f.typ, desc)
-		} else {
-			fmt.Fprintf(w, "      --%-23s %s\n", f.name, desc)
+		if !f.pagination {
+			printFlag(f.name, f.typ)
 		}
 	}
 	if apiPaginator(api) != nil {
 		fmt.Fprintf(w, "\nPagination Flags:\n")
-		for _, f := range []struct{ name, typ string }{
-			{"pager", ""},
-			{"total-count", "int"},
-		} {
-			if f.typ != "" {
-				fmt.Fprintf(w, "      --%-14s %-8s %s\n", f.name, f.typ, i18n.FlagDesc(lang, f.name))
-			} else {
-				fmt.Fprintf(w, "      --%-23s %s\n", f.name, i18n.FlagDesc(lang, f.name))
+		for _, f := range globalFlags {
+			if f.pagination {
+				printFlag(f.name, f.typ)
 			}
 		}
 	}
@@ -579,9 +660,9 @@ func buildJSONObject(params []meta.Parameter, depth int, r *meta.Resolver) strin
 // buildKVExample generates a KV-style usage example, using dot-notation for nested fields.
 func buildKVExample(param meta.Parameter) string {
 	fields := flattenSubParamPaths(param.SubParameters, "")
-	kv := "--" + param.Name + " " + strings.Join(fields, " ")
+	kv := "--" + cliParamName(param.Name) + " " + strings.Join(fields, " ")
 	if strings.ToLower(param.Type) == "list" {
-		return kv + "\n" + kv + "  " + fmt.Sprintf(i18n.T(i18n.GetLanguage(), "kv-repeat-hint"), param.Name)
+		return kv + "\n" + kv + "  " + fmt.Sprintf(i18n.T(i18n.GetLanguage(), "kv-repeat-hint"), cliParamName(param.Name))
 	}
 	return kv
 }
@@ -652,6 +733,26 @@ func loadParamsFromFile(arg string) (map[string]string, error) {
 	return result, nil
 }
 
+// resolveFileParams maps top-level --cli-input-json keys, which use the same
+// names as CLI flags (e.g. "biz-region"), back to the original API parameter names.
+func resolveFileParams(fileParams map[string]string, schemaParams []meta.Parameter) (map[string]string, error) {
+	paramTypeMap := paramTypes(schemaParams)
+	out := make(map[string]string, len(fileParams))
+	for k, v := range fileParams {
+		name, isGlobal, err := resolveFlag(k, paramTypeMap)
+		if err != nil {
+			return nil, err
+		}
+		if isGlobal {
+			if _, exists := paramTypeMap[name]; exists {
+				return nil, fmt.Errorf("key %q collides with a global flag; use %q for this API's parameter", k, cliParamName(name))
+			}
+		}
+		out[name] = v
+	}
+	return out, nil
+}
+
 // buildSkeletonJSON generates an indented JSON skeleton for all API parameters,
 // using type-appropriate placeholder values.
 func buildSkeletonJSON(params []meta.Parameter) string {
@@ -670,17 +771,22 @@ func buildSkeletonObject(params []meta.Parameter, depth int) string {
 		if isLast {
 			comma = ""
 		}
+		// Top-level keys mirror the CLI flag names; nested keys are sent as-is.
+		key := p.Name
+		if depth == 0 {
+			key = cliParamName(p.Name)
+		}
 		if len(p.SubParameters) > 0 {
 			nested := buildSkeletonObject(p.SubParameters, depth+1)
 			if strings.ToLower(p.Type) == "list" {
 				fmt.Fprintf(&sb, "%s\"%s\": [\n%s  %s\n%s  ]%s\n",
-					fieldPad, p.Name, fieldPad, nested, fieldPad, comma)
+					fieldPad, key, fieldPad, nested, fieldPad, comma)
 			} else {
-				fmt.Fprintf(&sb, "%s\"%s\": %s%s\n", fieldPad, p.Name, nested, comma)
+				fmt.Fprintf(&sb, "%s\"%s\": %s%s\n", fieldPad, key, nested, comma)
 			}
 		} else {
 			placeholder := skeletonPlaceholder(p)
-			fmt.Fprintf(&sb, "%s\"%s\": %s%s\n", fieldPad, p.Name, placeholder, comma)
+			fmt.Fprintf(&sb, "%s\"%s\": %s%s\n", fieldPad, key, placeholder, comma)
 		}
 	}
 	sb.WriteString(pad + "}")
