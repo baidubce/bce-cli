@@ -134,6 +134,48 @@ bce configure set sts \
 
 配置文件保存在 `~/.bce/config.json`。
 
+### OAuth 浏览器登录
+
+除了手动填写 AK/SK，还可以通过浏览器完成 IAM 登录，由 CLI 自动换取并续期临时凭证（AK/SK + Session Token），无需在本地保存长期密钥：
+
+```bash
+# 打开浏览器完成登录（凭证写入名为 oauth 的 profile）
+bce auth login
+
+# 登录并设置默认 region
+bce auth login --region bj
+
+# 无图形界面环境（SSH / 容器）：只打印授权链接，手动在浏览器中打开
+bce auth login --no-browser
+```
+
+`bce auth` 只支持单账号登录：登录凭证固定写入名为 `oauth` 的 profile（不存在则自动创建），已有的 AK profile 不会被改动；登录成功后当前 profile 会切换到它，需要切回用 `bce configure use <name>`。已登录时再次执行 `bce auth login` 不会重新打开浏览器，而是提示已登录信息，需要先 `bce auth logout`。因此 `bce auth login/status/logout` 不支持 `--profile`（传入会报错）。
+
+登录成功后，该 profile 的 `mode` 为 `OAuth`，后续调用 API 时自动使用临时凭证，并在过期前自动续期：
+
+```bash
+# 查看当前登录状态（登录用户、IAM/STS 地址、凭证过期时间等）
+bce auth status
+
+# 手动续期本地临时凭证
+bce auth refresh
+
+# 清除本地登录状态
+bce auth logout
+```
+
+登录状态（Refresh Token、ID Token 和临时凭证）保存在 `~/.bce/oauth/oauth.json`，目录权限 0700、文件权限 0600，与 `config.json` 分开存放。凭证过期后 CLI 会依次尝试：复用未过期的 ID Token 重新换取临时凭证 → 使用 Refresh Token 刷新 → 若 Refresh Token 已失效则提示重新执行 `bce auth login`。调用 API 时会自动完成上述续期，无需手动干预；`bce auth refresh` 用于在不发起业务请求的情况下手动触发同样的续期流程。
+
+`bce auth login` 的 flag 说明：
+
+| Flag                   | 说明                                                        |
+| ---------------------- | ----------------------------------------------------------- |
+| `--no-browser`       | 不自动打开浏览器，仅打印授权链接                            |
+| `--callback-timeout` | 等待浏览器回调的超时时间（秒），默认 300                    |
+| `--format`            | 输出格式：`text`（默认）/ `json`                          |
+| `--region`            | 写入该 profile 的默认 region（全局 flag）                  |
+
+
 ### 多 Profile 管理
 
 BCE CLI 支持多个 profile，适用于同时管理多个账号或环境：
@@ -182,6 +224,11 @@ bce vpc DescribeVpcs --profile prod
       "access_key_id": "TEMP_AK",
       "secret_access_key": "TEMP_SK",
       "security_token": "YOUR_STS_TOKEN",
+      "region": "bj"
+    },
+    {
+      "name": "oauth",
+      "mode": "OAuth",
       "region": "bj"
     }
   ]

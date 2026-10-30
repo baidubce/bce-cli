@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/baidubce/bce-cli/internal/config"
 	"github.com/baidubce/bce-cli/internal/i18n"
+	"github.com/baidubce/bce-cli/internal/oauth"
 	"github.com/spf13/cobra"
 )
 
@@ -50,10 +52,10 @@ var configureSetCmd = &cobra.Command{
 		if cmd.Flags().Changed("mode") {
 			modeStr, _ := cmd.Flags().GetString("mode")
 			switch config.AuthMode(modeStr) {
-			case config.ModeAK, config.ModeStsToken:
+			case config.ModeAK, config.ModeStsToken, config.ModeOAuth:
 				p.Mode = config.AuthMode(modeStr)
 			default:
-				return fmt.Errorf("invalid --mode %q: must be AK or StsToken", modeStr)
+				return fmt.Errorf("invalid --mode %q: must be AK, StsToken or OAuth", modeStr)
 			}
 		}
 
@@ -86,6 +88,10 @@ var configureSetCmd = &cobra.Command{
 			if cmd.Flags().Changed("security-token") {
 				p.SecurityToken, _ = cmd.Flags().GetString("security-token")
 			}
+		} else if p.Mode == config.ModeOAuth {
+			// OAuth credentials come from `bce auth login`; only ask for preferences.
+			r := bufio.NewReader(os.Stdin)
+			p.Region = prompt(r, "Region", p.Region, false)
 		} else {
 			r := bufio.NewReader(os.Stdin)
 			p.AccessKeyId = prompt(r, "Access Key Id", p.AccessKeyId, false)
@@ -94,6 +100,17 @@ var configureSetCmd = &cobra.Command{
 			if p.Mode == config.ModeStsToken {
 				p.SecurityToken = prompt(r, "Security Token", p.SecurityToken, true)
 			}
+		}
+
+		if p.Mode == config.ModeOAuth {
+			// Long-lived keys have no effect in OAuth mode; say so rather than
+			// dropping explicitly supplied values silently.
+			if cmd.Flags().Changed("access-key-id") ||
+				cmd.Flags().Changed("secret-access-key") ||
+				cmd.Flags().Changed("security-token") {
+				fmt.Fprintln(os.Stderr, i18n.T(i18n.GetLanguage(), "auth-ak-ignored"))
+			}
+			clearLongLivedKeys(p)
 		}
 
 		cfg.SetProfile(*p)
@@ -107,8 +124,28 @@ var configureSetCmd = &cobra.Command{
 			return err
 		}
 		fmt.Printf(i18n.T(i18n.GetLanguage(), "cfg-profile-saved")+"\n", name, config.ConfigDir())
+		// OAuth profiles have no credentials until a browser login has run.
+		if p.Mode == config.ModeOAuth {
+			if _, err := oauth.LoadTokens(name); err != nil {
+				fmt.Fprintln(os.Stderr, i18n.T(i18n.GetLanguage(), "auth-login-hint"))
+			}
+		}
 		return nil
 	},
+}
+
+// clearLongLivedKeys drops long-lived credential material from a profile that
+// has switched to OAuth, so it does not linger in config.json.
+func clearLongLivedKeys(p *config.Profile) {
+	p.AccessKeyId = ""
+	p.SecretAccessKey = ""
+	p.SecurityToken = ""
+}
+
+// hasLongLivedKeys reports whether a profile still stores credential material
+// that switching to OAuth would discard.
+func hasLongLivedKeys(p *config.Profile) bool {
+	return p.AccessKeyId != "" || p.SecretAccessKey != "" || p.SecurityToken != ""
 }
 
 var configureListCmd = &cobra.Command{
@@ -163,8 +200,22 @@ var configureGetCmd = &cobra.Command{
 		lang := i18n.GetLanguage()
 		fmt.Printf("%-16s  %s\n", i18n.T(lang, "cfg-field-name")+":", p.Name)
 		fmt.Printf("%-16s  %s\n", i18n.T(lang, "cfg-field-mode")+":", p.Mode)
-		fmt.Printf("%-16s  %s\n", "AccessKeyId:", maskSecret(p.AccessKeyId, 4))
-		fmt.Printf("%-16s  %s\n", "SecretAccessKey:", maskSecret(p.SecretAccessKey, 0))
+		if p.Mode == config.ModeOAuth {
+			if ts, err := oauth.LoadTokens(p.Name); err == nil {
+				if ts.Username != "" {
+					fmt.Printf("%-16s  %s\n", i18n.T(lang, "auth-field-user")+":", ts.Username)
+				}
+				if ts.STS != nil && !ts.STS.Expiration.IsZero() {
+					fmt.Printf("%-16s  %s\n", i18n.T(lang, "auth-field-stsexp")+":",
+						ts.STS.Expiration.Local().Format(time.RFC3339))
+				}
+			} else {
+				fmt.Printf("%s\n", fmt.Sprintf(i18n.T(lang, "auth-not-logged-in"), p.Name))
+			}
+		} else {
+			fmt.Printf("%-16s  %s\n", "AccessKeyId:", maskSecret(p.AccessKeyId, 4))
+			fmt.Printf("%-16s  %s\n", "SecretAccessKey:", maskSecret(p.SecretAccessKey, 0))
+		}
 		if p.Region != "" {
 			fmt.Printf("%-16s  %s\n", i18n.T(lang, "cfg-field-region")+":", p.Region)
 		}
@@ -185,7 +236,7 @@ var configureUseCmd = &cobra.Command{
 	Use:         "use <profile-name>",
 	Short:       i18n.T(i18n.GetLanguage(), "cmd-configure-use"),
 	Annotations: map[string]string{"i18n-short": "cmd-configure-use"},
-	Args:  cobra.ExactArgs(1),
+	Args:        cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -208,7 +259,7 @@ var configureDeleteCmd = &cobra.Command{
 	Use:         "delete <profile-name>",
 	Short:       i18n.T(i18n.GetLanguage(), "cmd-configure-delete"),
 	Annotations: map[string]string{"i18n-short": "cmd-configure-delete"},
-	Args:  cobra.ExactArgs(1),
+	Args:        cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -262,7 +313,7 @@ func init() {
 	configureSetCmd.Flags().String("region", "", "Region (e.g. bj / gz / su)")
 	configureSetCmd.Flags().String("endpoint", "", "Service endpoint override")
 	configureSetCmd.Flags().String("language", "", "Display language (zh-CN / en-US)")
-	configureSetCmd.Flags().String("mode", "", "Auth mode (AK / StsToken)")
+	configureSetCmd.Flags().String("mode", "", "Auth mode (AK / StsToken / OAuth)")
 	configureDeleteCmd.Flags().BoolP("yes", "y", false, i18n.FlagDesc(i18n.GetLanguage(), "cfg-delete-yes"))
 	configureCmd.AddCommand(
 		configureSetCmd,

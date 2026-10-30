@@ -1,9 +1,11 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"os"
 
+	"github.com/baidubce/bce-cli/internal/oauth"
 	"github.com/baidubce/bce-sdk-go/auth"
 )
 
@@ -16,6 +18,7 @@ type AuthMode string
 const (
 	ModeAK       AuthMode = "AK"
 	ModeStsToken AuthMode = "StsToken"
+	ModeOAuth    AuthMode = "OAuth"
 )
 
 // Profile holds all credential and preference settings for one named configuration.
@@ -33,12 +36,12 @@ type Profile struct {
 // FlagOverrides carries per-invocation values from global flags that take
 // precedence over the active profile.
 type FlagOverrides struct {
-	Region        string
-	Endpoint      string
-	Scheme        string // "http" or "https"; empty means auto-detect from product metadata
-	Language      string
-	Output        string
-	Query         string
+	Region     string
+	Endpoint   string
+	Scheme     string // "http" or "https"; empty means auto-detect from product metadata
+	Language   string
+	Output     string
+	Query      string
 	DryRun     bool
 	Debug      bool
 	NoColor    bool
@@ -80,6 +83,17 @@ func (p *Profile) Credentials() (*auth.BceCredentials, error) {
 			return nil, fmt.Errorf("security_token is required for StsToken mode")
 		}
 		return auth.NewSessionBceCredentials(p.AccessKeyId, p.SecretAccessKey, p.SecurityToken)
+
+	case ModeOAuth:
+		// Temporary credentials come from the OAuth login state, renewed on demand.
+		// The OAuth access_token is never used to sign BCE requests.
+		ctx, cancel := context.WithTimeout(context.Background(), oauth.CredentialsTimeout)
+		defer cancel()
+		creds, err := oauth.NewManager(p.Name).Credentials(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return auth.NewSessionBceCredentials(creds.AccessKeyID, creds.SecretAccessKey, creds.SessionToken)
 
 	default:
 		return nil, fmt.Errorf("auth mode %q is not yet supported", p.Mode)

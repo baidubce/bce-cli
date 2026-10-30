@@ -12,8 +12,8 @@ var completionCmd = &cobra.Command{
 	Use:         "completion [bash|zsh|fish|powershell]",
 	Short:       i18n.T(i18n.GetLanguage(), "cmd-completion"),
 	Annotations: map[string]string{"i18n-short": "cmd-completion"},
-	ValidArgs: []string{"bash", "zsh", "fish", "powershell"},
-	Args:      cobra.ExactValidArgs(1),
+	ValidArgs:   []string{"bash", "zsh", "fish", "powershell"},
+	Args:        cobra.ExactValidArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		switch args[0] {
 		case "bash":
