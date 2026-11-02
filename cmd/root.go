@@ -121,6 +121,8 @@ func init() {
 				"sts-base":         "auth-sts-base",
 				"callback-timeout": "auth-callback-timeout",
 				"format":           "auth-format",
+				"all":              "auth-all",
+				"yes":              "auth-yes",
 			} {
 				if f := c.Flags().Lookup(name); f != nil {
 					if desc := i18n.FlagDesc(lang, key); desc != "" {

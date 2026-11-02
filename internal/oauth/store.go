@@ -7,10 +7,27 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/baidubce/bce-cli/internal/sts"
 )
+
+// DefaultProfile is the profile `bce auth login` falls back to when --profile
+// is not given and the current profile is not an OAuth profile.
+const DefaultProfile = "oauth"
+
+// LoginCommand returns the `bce auth login` invocation that logs profile in.
+// A named profile is always passed explicitly: a bare login follows the current
+// profile, so it would not necessarily reach the profile asked about. An empty
+// profile yields the bare command.
+func LoginCommand(profile string) string {
+	if profile == "" {
+		return "bce auth login"
+	}
+	return "bce auth login --profile " + profile
+}
 
 // ErrNotLoggedIn is returned when no OAuth login state exists for a profile.
 var ErrNotLoggedIn = errors.New("not logged in with OAuth; run `bce auth login`")
@@ -84,6 +101,14 @@ func TokenPath(profile string) (string, error) {
 	return filepath.Join(dir, tokenFileName(profile)+".json"), nil
 }
 
+// ValidProfileName reports whether a profile name maps to its own token file.
+// Names containing characters outside [A-Za-z0-9_-] are folded together by
+// tokenFileName (e.g. "a.b" and "a_b"), which would let two profiles share and
+// overwrite one login.
+func ValidProfileName(profile string) bool {
+	return profile != "" && tokenFileName(profile) == profile
+}
+
 // tokenFileName maps a profile name to a safe single path segment.
 func tokenFileName(profile string) string {
 	out := make([]rune, 0, len(profile))
@@ -99,6 +124,31 @@ func tokenFileName(profile string) string {
 		return "default"
 	}
 	return string(out)
+}
+
+// ListProfiles returns the names of all profiles that have OAuth login state on
+// disk, sorted. Lock and temp files are ignored.
+func ListProfiles() ([]string, error) {
+	dir, err := tokenDir()
+	if err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(dir)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read OAuth token dir: %w", err)
+	}
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		names = append(names, strings.TrimSuffix(e.Name(), ".json"))
+	}
+	sort.Strings(names)
+	return names, nil
 }
 
 // LoadTokens reads the persisted login state of a profile.

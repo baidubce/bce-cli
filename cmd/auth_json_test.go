@@ -152,7 +152,10 @@ func TestAuthStatusJSONLoggedIn(t *testing.T) {
 	seedActiveLogin(t, defaultOAuthProfile)
 	_, status, _ := freshAuthCommands()
 
-	out := runAuthJSON(t, status)
+	// config.Load() defaults Current to "default" when config.json does not
+	// exist yet, so an explicit --profile oauth exercises the "not current"
+	// notice.
+	out := runAuthJSON(t, status, "--profile", defaultOAuthProfile)
 	if out["authenticated"] != true {
 		t.Errorf("authenticated = %v, want true", out["authenticated"])
 	}
@@ -172,6 +175,22 @@ func TestAuthStatusJSONLoggedIn(t *testing.T) {
 	// exist yet, so this exercises the "not current" notice.
 	if out["current_profile"] != "default" {
 		t.Errorf("current_profile = %v, want %q", out["current_profile"], "default")
+	}
+}
+
+// TestAuthStatusJSONDefaultsToCurrentProfile covers status without --profile:
+// it reports the login of config.json's current profile, not the fixed oauth.
+func TestAuthStatusJSONDefaultsToCurrentProfile(t *testing.T) {
+	jsonHome(t)
+	seedActiveLogin(t, "dev")
+	if err := config.Save(&config.Configuration{Current: "dev"}); err != nil {
+		t.Fatalf("config.Save: %v", err)
+	}
+	_, status, _ := freshAuthCommands()
+
+	out := runAuthJSON(t, status)
+	if out["authenticated"] != true || out["profile"] != "dev" {
+		t.Errorf("status = %v, want authenticated dev login", out)
 	}
 }
 
@@ -208,6 +227,9 @@ func TestAuthLogoutJSONNotLoggedIn(t *testing.T) {
 func TestAuthLogoutJSONLoggedIn(t *testing.T) {
 	jsonHome(t)
 	seedActiveLogin(t, defaultOAuthProfile)
+	if err := config.Save(&config.Configuration{Current: defaultOAuthProfile}); err != nil {
+		t.Fatalf("config.Save: %v", err)
+	}
 	_, _, logout := freshAuthCommands()
 
 	out := runAuthJSON(t, logout)
@@ -223,6 +245,29 @@ func TestAuthLogoutJSONLoggedIn(t *testing.T) {
 
 	if _, err := oauth.NewManager(defaultOAuthProfile).Status(); err != oauth.ErrNotLoggedIn {
 		t.Errorf("token file was not removed: %v", err)
+	}
+}
+
+func TestAuthProfileFlagIsolatesLogins(t *testing.T) {
+	jsonHome(t)
+	seedActiveLogin(t, defaultOAuthProfile)
+	seedActiveLogin(t, "dev")
+
+	_, status, logout := freshAuthCommands()
+	out := runAuthJSON(t, status, "--profile", "dev")
+	if out["authenticated"] != true || out["profile"] != "dev" {
+		t.Errorf("status --profile dev = %v", out)
+	}
+
+	out = runAuthJSON(t, logout, "--profile", "dev")
+	if out["message"] != "Logged out" {
+		t.Errorf("logout --profile dev message = %v", out["message"])
+	}
+	if _, err := oauth.NewManager("dev").Status(); err != oauth.ErrNotLoggedIn {
+		t.Errorf("dev token file was not removed: %v", err)
+	}
+	if _, err := oauth.NewManager(defaultOAuthProfile).Status(); err != nil {
+		t.Errorf("oauth login must be untouched: %v", err)
 	}
 }
 
@@ -567,7 +612,7 @@ func TestAuthRefreshJSONSuccess(t *testing.T) {
 	}
 
 	refresh := freshRefreshCommand()
-	out := runAuthJSON(t, refresh)
+	out := runAuthJSON(t, refresh, "--profile", defaultOAuthProfile)
 	if out["success"] != true {
 		t.Errorf("success = %v, want true", out["success"])
 	}
@@ -628,7 +673,7 @@ func TestAuthRefreshJSONReusesValidCredentials(t *testing.T) {
 	}
 
 	refresh := freshRefreshCommand()
-	out := runAuthJSON(t, refresh)
+	out := runAuthJSON(t, refresh, "--profile", defaultOAuthProfile)
 	if out["success"] != true || out["authenticated"] != true {
 		t.Errorf("unexpected result: %+v", out)
 	}

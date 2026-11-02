@@ -210,7 +210,7 @@ var configureGetCmd = &cobra.Command{
 						ts.STS.Expiration.Local().Format(time.RFC3339))
 				}
 			} else {
-				fmt.Printf("%s\n", fmt.Sprintf(i18n.T(lang, "auth-not-logged-in"), p.Name))
+				fmt.Printf("%s\n", fmt.Sprintf(i18n.T(lang, "auth-profile-not-logged-in"), p.Name, authLoginCommand(p.Name)))
 			}
 		} else {
 			fmt.Printf("%-16s  %s\n", "AccessKeyId:", maskSecret(p.AccessKeyId, 4))

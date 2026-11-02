@@ -155,7 +155,7 @@ func (m *Manager) Credentials(ctx context.Context) (*sts.Credentials, error) {
 			return nil
 		}
 		if ts.STSBase == "" || ts.IAMBase == "" {
-			return fmt.Errorf("OAuth login state is incomplete; run `bce auth login` again")
+			return fmt.Errorf("OAuth login state is incomplete; run `%s` again", LoginCommand(m.Profile))
 		}
 
 		if !idTokenUsable(ts) {
@@ -185,11 +185,11 @@ func (m *Manager) Credentials(ctx context.Context) (*sts.Credentials, error) {
 // holding the profile lock.
 func (m *Manager) refreshLocked(ctx context.Context, ts *TokenSet) error {
 	if ts.RefreshToken == "" {
-		return fmt.Errorf("OAuth session expired and no refresh token is available; run `bce auth login`")
+		return fmt.Errorf("OAuth session expired and no refresh token is available; run `%s`", LoginCommand(m.Profile))
 	}
 	if !ts.RefreshTokenExpiresAt.IsZero() && !time.Now().Before(ts.RefreshTokenExpiresAt) {
 		_ = DeleteTokens(m.Profile)
-		return fmt.Errorf("OAuth refresh token expired; run `bce auth login`")
+		return fmt.Errorf("OAuth refresh token expired; run `%s`", LoginCommand(m.Profile))
 	}
 
 	client := &Client{HTTP: m.HTTP, Endpoints: Discover(ctx, m.HTTP, ts.IAMBase)}
@@ -199,7 +199,7 @@ func (m *Manager) refreshLocked(ctx context.Context, ts *TokenSet) error {
 			// The token family is gone; keeping the old token around would only
 			// trigger replay detection on the next attempt.
 			_ = DeleteTokens(m.Profile)
-			return fmt.Errorf("OAuth session is no longer valid (%v); run `bce auth login`", err)
+			return fmt.Errorf("OAuth session is no longer valid (%v); run `%s`", err, LoginCommand(m.Profile))
 		}
 		return err
 	}
