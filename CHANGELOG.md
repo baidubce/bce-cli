@@ -1,3 +1,6 @@
+2026-11-03 Version: v0.1.138
+- 修复PRIVATEZONE解析器转发规则接口字段拼写错误
+
 2026-11-03 Version: v0.1.137
 - PrivateZone
 
