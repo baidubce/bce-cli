@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -18,6 +19,10 @@ import (
 // not given and the current profile is not an OAuth profile (see
 // resolveAuthProfile).
 const defaultOAuthProfile = oauth.DefaultProfile
+
+// defaultLoginRegion is written to a profile on `auth login` when neither
+// --region nor an existing profile region is set.
+const defaultLoginRegion = "bj"
 
 var authCmd = &cobra.Command{
 	GroupID:     "system",
@@ -146,6 +151,10 @@ var authLoginCmd = &cobra.Command{
 		clearLongLivedKeys(p)
 		if region, _ := cmd.Root().PersistentFlags().GetString("region"); region != "" {
 			p.Region = region
+		} else if p.Region == "" && os.Getenv("BCE_REGION") == "" {
+			// Leave the region empty when BCE_REGION is set so the env var
+			// keeps taking effect at runtime.
+			p.Region = defaultLoginRegion
 		}
 		cfg.SetProfile(*p)
 		// Point the CLI at the profile just authenticated; `bce configure use`

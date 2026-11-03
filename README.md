@@ -180,7 +180,7 @@ bce auth logout --all --yes
 | `--no-browser`       | 不自动打开浏览器，仅打印授权链接                            |
 | `--callback-timeout` | 等待浏览器回调的超时时间（秒），默认 300                    |
 | `--format`            | 输出格式：`text`（默认）/ `json`；全局 `--output json` 与之等价，同时指定时 `--format` 优先 |
-| `--region`            | 写入该 profile 的默认 region（全局 flag）                  |
+| `--region`            | 写入该 profile 的默认 region（全局 flag）；未指定、profile 尚无 region 且未设置 `BCE_REGION` 时默认写入 `bj` |
 
 
 ### 多 Profile 管理
