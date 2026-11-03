@@ -89,3 +89,46 @@ func TestAuthFormatValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestAuthFormatHonoursGlobalOutput(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		format string // empty = not passed
+		output string // empty = not passed
+		want   string
+	}{
+		{"neither", "", "", "text"},
+		{"output json", "", "json", "json"},
+		{"output table", "", "table", "text"},
+		{"output text", "", "text", "text"},
+		{"format json beats output text", "json", "text", "json"},
+		{"format text beats output json", "text", "json", "text"},
+		{"format json only", "json", "", "json"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := &cobra.Command{Use: "bce"}
+			// The root persistent flag's default is json.
+			root.PersistentFlags().String("output", "json", "")
+			child := &cobra.Command{Use: "status"}
+			child.Flags().String("format", "text", "")
+			root.AddCommand(child)
+			if tc.format != "" {
+				if err := child.Flags().Set("format", tc.format); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.output != "" {
+				if err := root.PersistentFlags().Set("output", tc.output); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got, err := authFormat(child)
+			if err != nil {
+				t.Fatalf("authFormat: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("authFormat = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

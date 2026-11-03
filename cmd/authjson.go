@@ -46,13 +46,27 @@ func writeAuthJSON(cmd *cobra.Command, fields []jsonField) error {
 }
 
 // authFormat reads and validates the --format flag shared by the auth
-// subcommands. An invalid value is a usage error, not a silent fallback.
+// subcommands. An invalid --format value is a usage error, not a silent
+// fallback.
+//
+// An explicit --format wins. Otherwise an explicitly passed global --output
+// is honoured: "json" selects json and any other value selects text. The
+// global --output defaults to json, so it is only consulted when Changed;
+// auth's own default stays text.
 func authFormat(cmd *cobra.Command) (string, error) {
-	format, _ := cmd.Flags().GetString("format")
-	switch format {
-	case "text", "json":
-		return format, nil
-	default:
-		return "", fmt.Errorf("invalid --format %q: must be text or json", format)
+	if cmd.Flags().Changed("format") {
+		format, _ := cmd.Flags().GetString("format")
+		switch format {
+		case "text", "json":
+			return format, nil
+		default:
+			return "", fmt.Errorf("invalid --format %q: must be text or json", format)
+		}
 	}
+	if cmd.Root().PersistentFlags().Changed("output") {
+		if output, _ := cmd.Root().PersistentFlags().GetString("output"); output == "json" {
+			return "json", nil
+		}
+	}
+	return "text", nil
 }
