@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	defaultConfigDir  = ".bce"
-	configFileName    = "config.json"
+	defaultConfigDir = ".bce"
+	configFileName   = "config.json"
 )
 
 // Configuration is the top-level structure persisted to ~/.bce/config.json.

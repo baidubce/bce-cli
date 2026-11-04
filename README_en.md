@@ -134,6 +134,54 @@ bce configure set sts \
 
 The configuration file is saved to `~/.bce/config.json`.
 
+### OAuth Browser Login
+
+Instead of entering an AK/SK pair, you can log in to IAM through a browser and let the CLI obtain and renew temporary credentials (AK/SK + session token) for you, so no long-lived secret is stored locally:
+
+```bash
+# Open a browser to log in (credentials land in a profile named "oauth" by default)
+bce auth login
+
+# Log in to a named profile (multiple accounts; every bce auth command accepts --profile)
+bce auth login --profile dev
+
+# Log in and set the default region
+bce auth login --region bj
+
+# Headless environments (SSH / containers): print the authorization URL only
+bce auth login --no-browser
+```
+
+`bce auth` supports multiple profiles: `bce auth login/status/refresh/logout` all accept `--profile <name>` to choose the profile to operate on; names may contain only letters, digits, `-` and `_`. Without it, `status/refresh/logout` use the current profile; `login` also uses it when it is an OAuth profile, and `oauth` otherwise (so an AK profile is never converted by accident). Credentials are stored in that profile (created if needed). After a successful login that profile becomes the current one; `bce configure use <name>` switches back. If `--profile` names an existing AK profile, its long-lived keys are cleared and it is converted to OAuth mode (a warning is printed). Running `bce auth login` again for a profile that is already logged in and is the current profile does not reopen the browser — it reports the existing session instead; run `bce auth logout` first to replace it.
+
+After a successful login the profile's `mode` is `OAuth`; subsequent API calls use the temporary credentials and renew them before they expire:
+
+```bash
+# Show the current login state (user, IAM/STS bases, credential expiry, ...)
+bce auth status
+
+# Manually renew the local temporary credentials
+bce auth refresh
+
+# Clear the local login state
+bce auth logout
+
+# Log out of every OAuth login (asks for confirmation; -y/--yes skips the prompt; cannot be combined with --profile)
+bce auth logout --all
+bce auth logout --all --yes
+```
+
+The login state (refresh token, ID token and temporary credentials) is stored in `~/.bce/oauth/<profile>.json` (`oauth.json` by default) with directory mode 0700 and file mode 0600, separate from `config.json`. When credentials expire the CLI tries, in order: re-exchange a still-valid ID Token for new credentials, refresh via the refresh token, and finally ask you to run `bce auth login` again. This renewal happens automatically when you call an API; `bce auth refresh` triggers the same flow manually without making a business request.
+
+`bce auth login` flags:
+
+| Flag                   | Description                                                     |
+| ---------------------- | ----------------------------------------------------------------- |
+| `--no-browser`       | Do not open a browser; print the authorization URL only          |
+| `--callback-timeout` | Seconds to wait for the browser callback (default 300)           |
+| `--format`            | Output format: `text` (default) / `json`                       |
+| `--region`            | Default region to store in this profile (global flag)          |
+
 ### Multiple Profiles
 
 BCE CLI supports multiple profiles, making it easy to manage multiple accounts or environments:
@@ -182,6 +230,11 @@ Example `~/.bce/config.json`:
       "access_key_id": "TEMP_AK",
       "secret_access_key": "TEMP_SK",
       "security_token": "YOUR_STS_TOKEN",
+      "region": "bj"
+    },
+    {
+      "name": "oauth",
+      "mode": "OAuth",
       "region": "bj"
     }
   ]

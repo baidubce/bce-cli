@@ -205,14 +205,10 @@ func (inv *Invoker) Call() (map[string]interface{}, error) {
 	if inv.overrides.DryRun {
 		fmt.Fprintf(os.Stderr, "[DRY-RUN] %s %s://%s%s\n", inv.api.Method, inv.scheme, inv.endpoint, uri)
 		if len(queryParams) > 0 {
-			parts := make([]string, 0, len(queryParams))
-			for k, v := range queryParams {
-				parts = append(parts, k+"="+v)
-			}
-			fmt.Fprintf(os.Stderr, "[DRY-RUN] Query: %s\n", strings.Join(parts, "&"))
+			fmt.Fprintf(os.Stderr, "[DRY-RUN] Query: %s\n", formatQueryParams(queryParams))
 		}
 		for k, v := range headerParams {
-			fmt.Fprintf(os.Stderr, "[DRY-RUN] Header: %s: %s\n", k, v)
+			fmt.Fprintf(os.Stderr, "[DRY-RUN] Header: %s: %s\n", k, redactHeaderValue(k, v))
 		}
 		if len(bodyParams) > 0 {
 			raw, _ := json.MarshalIndent(bodyParams, "", "  ")
@@ -277,14 +273,10 @@ func (inv *Invoker) Call() (map[string]interface{}, error) {
 	if inv.overrides.Debug {
 		fmt.Fprintf(os.Stderr, "[DEBUG] > %s %s://%s%s\n", req.Method(), inv.scheme, inv.endpoint, req.Uri())
 		if len(queryParams) > 0 {
-			parts := make([]string, 0, len(queryParams))
-			for k, v := range queryParams {
-				parts = append(parts, k+"="+v)
-			}
-			fmt.Fprintf(os.Stderr, "[DEBUG] > Query: %s\n", strings.Join(parts, "&"))
+			fmt.Fprintf(os.Stderr, "[DEBUG] > Query: %s\n", formatQueryParams(queryParams))
 		}
 		for k, v := range headerParams {
-			fmt.Fprintf(os.Stderr, "[DEBUG] > Header: %s: %s\n", k, v)
+			fmt.Fprintf(os.Stderr, "[DEBUG] > Header: %s: %s\n", k, redactHeaderValue(k, v))
 		}
 		if len(bodyParams) > 0 {
 			fmt.Fprintf(os.Stderr, "[DEBUG] > Header: Content-Type: application/json;charset=utf-8\n")
@@ -302,7 +294,7 @@ func (inv *Invoker) Call() (map[string]interface{}, error) {
 	if inv.overrides.Debug {
 		fmt.Fprintf(os.Stderr, "[DEBUG] < Status: %d\n", resp.StatusCode())
 		for k, v := range resp.Headers() {
-			fmt.Fprintf(os.Stderr, "[DEBUG] < Header: %s: %s\n", k, v)
+			fmt.Fprintf(os.Stderr, "[DEBUG] < Header: %s: %s\n", k, redactHeaderValue(k, v))
 		}
 	}
 
@@ -387,6 +379,45 @@ func defaultToString(v any) string {
 	default:
 		return fmt.Sprintf("%v", v)
 	}
+}
+
+// sensitiveHeaders are never printed verbatim in --debug / --dry-run output:
+// they carry bearer tokens or STS session tokens.
+var sensitiveHeaders = map[string]bool{
+	"authorization":        true,
+	"x-bce-security-token": true,
+	"x-bce-session-token":  true,
+}
+
+// sensitiveNameFragments mark query parameters whose values must not be printed.
+var sensitiveNameFragments = []string{"token", "secret", "password", "signature", "credential"}
+
+// redactHeaderValue masks the value of a credential-bearing header.
+func redactHeaderValue(name, value string) string {
+	if value == "" || !sensitiveHeaders[strings.ToLower(name)] {
+		return value
+	}
+	return "[REDACTED]"
+}
+
+// formatQueryParams renders query parameters for diagnostic output, masking
+// values whose parameter name suggests they carry credentials.
+func formatQueryParams(params map[string]string) string {
+	parts := make([]string, 0, len(params))
+	for k, v := range params {
+		if v != "" {
+			lower := strings.ToLower(k)
+			for _, frag := range sensitiveNameFragments {
+				if strings.Contains(lower, frag) {
+					v = "[REDACTED]"
+					break
+				}
+			}
+		}
+		parts = append(parts, k+"="+v)
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, "&")
 }
 
 func formatError(err error) error {
