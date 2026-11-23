@@ -5,10 +5,17 @@ type ProductList struct {
 	Products []Product `json:"products"`
 }
 
-// Product holds a service code, supported protocols, and its region-to-endpoint mapping.
+// Product holds a service code, supported protocols, and endpoint mappings.
 type Product struct {
-	Code     string            `json:"code"`
-	Protocol string            `json:"protocol"` // e.g. "HTTP", "HTTPS", "HTTP|HTTPS"
+	Code                        string                       `json:"code"`
+	Protocol                    string                       `json:"protocol"` // e.g. "HTTP", "HTTPS", "HTTP|HTTPS"
+	Endpoint                    map[string]string            `json:"endpoint"`
+	ProductSubCategoryEndpoints []ProductSubCategoryEndpoint `json:"product_sub_category_endpoint,omitempty"`
+}
+
+// ProductSubCategoryEndpoint overrides the product endpoint mapping for one subcategory.
+type ProductSubCategoryEndpoint struct {
+	Name     string            `json:"name"`
 	Endpoint map[string]string `json:"endpoint"`
 }
 
@@ -61,8 +68,9 @@ type VersionFile struct {
 	Apis        map[string]VersionApiMeta `json:"apis"`
 }
 
-// VersionApiMeta holds the title and summary for a single API entry in version.json.
+// VersionApiMeta holds the summary and subcategory for a single API in version.json.
 type VersionApiMeta struct {
-	Title   string `json:"title"`
-	Summary string `json:"summary"`
+	Title                  string `json:"title"`
+	Summary                string `json:"summary"`
+	ProductSubCategoryName string `json:"product_sub_category_name,omitempty"`
 }

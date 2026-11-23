@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/baidubce/bce-cli/internal/config"
+	"github.com/baidubce/bce-cli/internal/i18n"
 	"github.com/baidubce/bce-cli/internal/meta"
 	"github.com/baidubce/bce-sdk-go/auth"
 	"github.com/baidubce/bce-sdk-go/bce"
@@ -25,7 +26,7 @@ type Invoker struct {
 	timeout   int // request timeout in seconds; 0 means default (15s)
 }
 
-// NewInvoker creates an Invoker, resolving the endpoint from overrides > profile > product metadata.
+// NewInvoker resolves the endpoint from overrides > profile > API subcategory > product metadata.
 func NewInvoker(
 	profile *config.Profile,
 	api *meta.Api,
@@ -33,7 +34,15 @@ func NewInvoker(
 	overrides *config.FlagOverrides,
 	product *meta.Product,
 ) (*Invoker, error) {
-	endpoint, err := resolveEndpoint(profile, overrides, product)
+	subCategoryName := ""
+	if overrides.Endpoint == "" && profile.Endpoint == "" && len(product.ProductSubCategoryEndpoints) > 0 {
+		vf, err := meta.LoadVersionFile(i18n.GetLanguage(), product.Code)
+		if err != nil {
+			return nil, fmt.Errorf("resolve endpoint for service %q API %q: %w", product.Code, api.Name, err)
+		}
+		subCategoryName = vf.Apis[api.Name].ProductSubCategoryName
+	}
+	endpoint, err := resolveEndpoint(profile, overrides, product, subCategoryName)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +114,7 @@ func containsScheme(schemes []string, s string) bool {
 	return false
 }
 
-func resolveEndpoint(p *config.Profile, ov *config.FlagOverrides, product *meta.Product) (string, error) {
+func resolveEndpoint(p *config.Profile, ov *config.FlagOverrides, product *meta.Product, subCategoryName string) (string, error) {
 	if ov.Endpoint != "" {
 		return ov.Endpoint, nil
 	}
@@ -116,34 +125,41 @@ func resolveEndpoint(p *config.Profile, ov *config.FlagOverrides, product *meta.
 	if region == "" {
 		region = p.Region
 	}
-	if ep, ok := product.Endpoint[region]; ok && region != "" {
-		return ep, nil
-	}
-	// Global services are region-agnostic: fall back to the global endpoint for
-	// any region that has no dedicated endpoint, including an unset region.
-	if ep, ok := product.Endpoint[globalRegion]; ok {
-		if ov.Debug {
-			fmt.Fprintf(os.Stderr, "[DEBUG] region %q has no endpoint for service %q, using global endpoint %s\n", region, product.Code, ep)
+
+	endpoints := product.Endpoint
+	target := fmt.Sprintf("service %q", product.Code)
+	if subCategoryName != "" {
+		for _, subCategory := range product.ProductSubCategoryEndpoints {
+			if subCategory.Name == subCategoryName {
+				endpoints = subCategory.Endpoint
+				target += fmt.Sprintf(" subcategory %q", subCategoryName)
+				break
+			}
 		}
+	}
+
+	if region == "" {
+		return "", fmt.Errorf("region is required for %s (supported: %s): use --region, set BCE_REGION, or set it in your profile (e.g. bce configure set --region bj)",
+			target, supportedRegions(endpoints))
+	}
+	if ep := endpoints[region]; ep != "" {
 		return ep, nil
 	}
-	if region == "" {
-		return "", fmt.Errorf("region is required for service %q (supported: %s): use --region, set BCE_REGION, or set it in your profile (e.g. bce configure set --region bj)",
-			product.Code, supportedRegions(product))
-	}
-	return "", fmt.Errorf("region %q is not supported for service %q (supported: %s)", region, product.Code, supportedRegions(product))
+	return "", fmt.Errorf("region %q is not supported or has no endpoint for %s (supported: %s)", region, target, supportedRegions(endpoints))
 }
 
-// globalRegion is the endpoint key used by region-agnostic services in products.json.
-const globalRegion = "global"
-
-// supportedRegions returns the product's configured regions as a sorted, comma-separated list.
-func supportedRegions(product *meta.Product) string {
-	regions := make([]string, 0, len(product.Endpoint))
-	for r := range product.Endpoint {
-		regions = append(regions, r)
+// supportedRegions lists only regions with nonempty endpoints in the selected mapping.
+func supportedRegions(endpoints map[string]string) string {
+	regions := make([]string, 0, len(endpoints))
+	for region, endpoint := range endpoints {
+		if region != "" && endpoint != "" {
+			regions = append(regions, region)
+		}
 	}
 	sort.Strings(regions)
+	if len(regions) == 0 {
+		return "none"
+	}
 	return strings.Join(regions, ", ")
 }
 
